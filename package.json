@@ -1,0 +1,12 @@
+{
+  "name": "true-shape-worldle",
+  "version": "0.1.0",
+  "private": true,
+  "description": "A Worldle-style country-guessing game that renders silhouettes in a true-shape (orthographic) projection, with a live toggle to Mercator and Gall-Peters.",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}

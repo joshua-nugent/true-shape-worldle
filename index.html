@@ -1,0 +1,647 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<title>True Shape Worldle</title>
+<style>
+  :root {
+    --bg: #0f1419;
+    --panel: #1a222c;
+    --panel-2: #232f3d;
+    --line: #33404f;
+    --text: #e6edf3;
+    --muted: #90a0b0;
+    --accent: #4cc2ff;
+    --land: #dfe7ee;
+    --land-line: #7f8fa0;
+    --good: #4caf50;
+    --warn: #e6b800;
+    --bad: #e05555;
+  }
+  * { box-sizing: border-box; }
+  html, body {
+    margin: 0; padding: 0;
+    background: var(--bg); color: var(--text);
+    font-family: system-ui, -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  }
+  .wrap {
+    max-width: 480px; margin: 0 auto; padding: 12px 14px 40px;
+  }
+  header { text-align: center; margin-bottom: 8px; }
+  h1 {
+    font-size: 1.5rem; margin: 6px 0 2px; letter-spacing: .3px;
+  }
+  h1 .globe { color: var(--accent); }
+  .tagline { color: var(--muted); font-size: .8rem; margin: 0 0 4px; }
+  .topbar { display: flex; justify-content: center; gap: 14px; margin-bottom: 8px; }
+  .topbar button {
+    background: none; border: none; color: var(--muted); cursor: pointer;
+    font-size: 1.2rem; padding: 4px; line-height: 1;
+  }
+  .topbar button:hover { color: var(--text); }
+
+  /* Projection toggle */
+  .proj-toggle {
+    display: flex; gap: 6px; justify-content: center; margin: 4px 0 10px;
+  }
+  .proj-toggle button {
+    flex: 1; max-width: 150px;
+    background: var(--panel); color: var(--muted);
+    border: 1px solid var(--line); border-radius: 10px;
+    padding: 8px 6px; cursor: pointer; font-size: .82rem; font-weight: 600;
+    transition: .12s;
+  }
+  .proj-toggle button .sub { display: block; font-weight: 400; font-size: .68rem; opacity: .8; margin-top: 2px; }
+  .proj-toggle button.active {
+    background: var(--panel-2); color: var(--text); border-color: var(--accent);
+    box-shadow: 0 0 0 1px var(--accent) inset;
+  }
+
+  /* Map */
+  .mapcard {
+    background: var(--panel); border: 1px solid var(--line); border-radius: 14px;
+    padding: 8px; position: relative;
+  }
+  #map { display: block; width: 100%; height: auto; }
+  #map path.land { fill: var(--land); stroke: var(--land-line); stroke-width: .6px; stroke-linejoin: round; }
+  #map circle.globe-outline { fill: #101b26; stroke: var(--line); stroke-width: 1px; }
+  .proj-note {
+    text-align: center; color: var(--muted); font-size: .72rem; margin: 6px 2px 0; min-height: 1em;
+  }
+
+  /* Guess input */
+  .guessrow { position: relative; margin-top: 12px; display: flex; gap: 8px; }
+  #guess {
+    flex: 1; background: var(--panel); color: var(--text);
+    border: 1px solid var(--line); border-radius: 10px; padding: 12px;
+    font-size: 1rem;
+  }
+  #guess:focus { outline: none; border-color: var(--accent); }
+  #guessBtn {
+    background: var(--accent); color: #06212e; border: none; border-radius: 10px;
+    padding: 0 16px; font-weight: 700; cursor: pointer; font-size: .95rem;
+  }
+  #guessBtn:disabled { opacity: .4; cursor: default; }
+  .ac {
+    position: absolute; left: 0; right: 64px; top: 52px; z-index: 20;
+    background: var(--panel-2); border: 1px solid var(--line); border-radius: 10px;
+    max-height: 210px; overflow-y: auto; box-shadow: 0 8px 24px rgba(0,0,0,.4);
+  }
+  .ac div { padding: 10px 12px; cursor: pointer; font-size: .92rem; border-bottom: 1px solid var(--line); }
+  .ac div:last-child { border-bottom: none; }
+  .ac div.sel, .ac div:hover { background: var(--accent); color: #06212e; }
+  .ac.hidden { display: none; }
+
+  /* Guesses list */
+  .guesses { margin-top: 12px; display: flex; flex-direction: column; gap: 6px; }
+  .grow {
+    display: grid; grid-template-columns: 1fr auto auto auto; align-items: center;
+    gap: 8px; background: var(--panel); border: 1px solid var(--line);
+    border-radius: 10px; padding: 10px 12px; font-size: .9rem;
+  }
+  .grow .name { font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .grow .dist { color: var(--muted); font-variant-numeric: tabular-nums; }
+  .grow .dir { font-size: 1.15rem; display: inline-block; }
+  .grow .prox { font-weight: 700; font-variant-numeric: tabular-nums; min-width: 44px; text-align: right; }
+  .grow.correct { border-color: var(--good); background: #16301b; }
+  .grow.correct .prox { color: var(--good); }
+  .slots { margin-left: 2px; }
+  .msg { text-align: center; margin-top: 14px; font-size: 1rem; min-height: 1.2em; }
+  .msg.win { color: var(--good); font-weight: 700; }
+  .msg.lose { color: var(--bad); font-weight: 700; }
+  .actions { display: flex; gap: 8px; justify-content: center; margin-top: 12px; }
+  .actions button {
+    background: var(--panel-2); color: var(--text); border: 1px solid var(--line);
+    border-radius: 10px; padding: 10px 16px; cursor: pointer; font-weight: 600; font-size: .9rem;
+  }
+  .actions button.primary { background: var(--good); border-color: var(--good); color: #04150a; }
+
+  /* Modal */
+  .modal-bg {
+    position: fixed; inset: 0; background: rgba(0,0,0,.6); display: none;
+    align-items: center; justify-content: center; z-index: 50; padding: 16px;
+  }
+  .modal-bg.show { display: flex; }
+  .modal {
+    background: var(--panel); border: 1px solid var(--line); border-radius: 14px;
+    max-width: 420px; width: 100%; padding: 18px; max-height: 88vh; overflow-y: auto;
+  }
+  .modal h2 { margin: 0 0 10px; font-size: 1.1rem; }
+  .modal .close { float: right; background: none; border: none; color: var(--muted); font-size: 1.4rem; cursor: pointer; line-height: 1; }
+  .stats-grid { display: grid; grid-template-columns: repeat(4,1fr); gap: 6px; text-align: center; margin: 8px 0 14px; }
+  .stat .n { font-size: 1.5rem; font-weight: 700; }
+  .stat .l { font-size: .66rem; color: var(--muted); text-transform: uppercase; letter-spacing: .5px; }
+  .dist-row { display: flex; align-items: center; gap: 8px; margin: 3px 0; font-size: .82rem; }
+  .dist-row .k { width: 14px; color: var(--muted); }
+  .dist-row .bar { background: var(--accent); color: #06212e; text-align: right; padding: 2px 6px; border-radius: 4px; min-width: 22px; font-weight: 700; }
+  .dist-row .bar.zero { background: var(--line); color: var(--muted); }
+  .modal p.small { color: var(--muted); font-size: .8rem; line-height: 1.5; }
+  .hist-list { margin-top: 10px; }
+  .hist-item { display: flex; justify-content: space-between; padding: 6px 0; border-bottom: 1px solid var(--line); font-size: .84rem; }
+  .hist-item .r.win { color: var(--good); }
+  .hist-item .r.lose { color: var(--bad); }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <div class="topbar">
+      <button id="helpBtn" title="How to play">&#9432;</button>
+      <button id="statsBtn" title="Stats &amp; history">&#128202;</button>
+    </div>
+    <h1><span class="globe">&#127758;</span> True Shape Worldle</h1>
+    <p class="tagline">Guess the country by its <em>real</em> shape &mdash; then see how projections lie.</p>
+  </header>
+
+  <div class="proj-toggle" id="projToggle">
+    <button data-proj="ortho" class="active">True shape<span class="sub">Orthographic</span></button>
+    <button data-proj="mercator">Mercator<span class="sub">shape&#10003; area&#10007;</span></button>
+    <button data-proj="peters">Gall&ndash;Peters<span class="sub">area&#10003; shape&#10007;</span></button>
+  </div>
+
+  <div class="mapcard">
+    <svg id="map" viewBox="0 0 360 360" preserveAspectRatio="xMidYMid meet" aria-label="Country silhouette"></svg>
+  </div>
+  <div class="proj-note" id="projNote"></div>
+
+  <div class="guessrow">
+    <input id="guess" type="text" autocomplete="off" autocapitalize="off" spellcheck="false"
+           placeholder="Guess a country&hellip;" />
+    <button id="guessBtn">Guess</button>
+    <div id="ac" class="ac hidden"></div>
+  </div>
+
+  <div class="guesses" id="guesses"></div>
+  <div class="msg" id="msg"></div>
+  <div class="actions" id="actions" style="display:none">
+    <button id="shareBtn" class="primary">Share</button>
+    <button id="practiceBtn">Practice&#8202;&#8594;</button>
+  </div>
+</div>
+
+<!-- Stats modal -->
+<div class="modal-bg" id="statsModal">
+  <div class="modal">
+    <button class="close" data-close>&times;</button>
+    <h2>Statistics</h2>
+    <div class="stats-grid">
+      <div class="stat"><div class="n" id="stPlayed">0</div><div class="l">Played</div></div>
+      <div class="stat"><div class="n" id="stWin">0</div><div class="l">Win %</div></div>
+      <div class="stat"><div class="n" id="stStreak">0</div><div class="l">Streak</div></div>
+      <div class="stat"><div class="n" id="stMax">0</div><div class="l">Max streak</div></div>
+    </div>
+    <h2>Guess distribution</h2>
+    <div id="distChart"></div>
+    <h2 style="margin-top:14px">Recent games</h2>
+    <div class="hist-list" id="histList"></div>
+  </div>
+</div>
+
+<!-- Help modal -->
+<div class="modal-bg" id="helpModal">
+  <div class="modal">
+    <button class="close" data-close>&times;</button>
+    <h2>How to play</h2>
+    <p class="small">
+      A mystery country is shown as a silhouette. You have <b>6 guesses</b>. After each guess
+      you get the <b>distance</b> to the target, a <b>direction arrow</b>, and a <b>proximity&nbsp;%</b>
+      (100% = correct).
+    </p>
+    <p class="small">
+      The silhouette defaults to an <b>orthographic</b> view &mdash; the country as seen from
+      directly overhead in space, with almost no distortion. That's its <b>true shape</b>.
+      Use the toggle to redraw the <em>same</em> country in:
+    </p>
+    <p class="small">
+      &bull; <b>Mercator</b> &mdash; preserves local shape but stretches area badly toward the poles
+      (this is what the original Worldle uses).<br>
+      &bull; <b>Gall&ndash;Peters</b> &mdash; preserves area but stretches shape.
+    </p>
+    <p class="small">
+      No flat map can keep both shape and area true &mdash; only a globe can. Switch projections
+      to feel the trade-off. Your results are saved on this device only (no login).
+    </p>
+  </div>
+</div>
+
+<script src="./vendor/d3.min.js"></script>
+<script src="./vendor/d3-geo-projection.min.js"></script>
+<script>
+(function () {
+  "use strict";
+
+  var W = 360, H = 360, PAD = 26, MAX_GUESSES = 6, EARTH_KM = 6371;
+  var svg = d3.select("#map");
+  var pathGen = d3.geoPath();
+
+  var state = {
+    countries: [],      // {name, feature, centroid:[lon,lat]}
+    byName: {},
+    target: null,
+    proj: "ortho",
+    guesses: [],        // {name, dist, bearing, prox, correct}
+    over: false,
+    mode: "daily",      // "daily" | "practice"
+    dayKey: null,
+  };
+
+  var PROJ_NOTE = {
+    ortho: "Orthographic — the true shape, viewed from straight above.",
+    mercator: "Mercator — shape kept, area exaggerated toward the poles.",
+    peters: "Gall–Peters — area kept, shape stretched.",
+  };
+
+  // ---- Load data ----
+  fetch("./data/countries.geo.json")
+    .then(function (r) {
+      if (!r.ok) throw new Error("Failed to load country data (HTTP " + r.status + ")");
+      return r.json();
+    })
+    .then(function (geo) {
+      geo.features.forEach(function (f) {
+        var name = f.properties && f.properties.name;
+        if (!name) return;
+        state.countries.push({ name: name, feature: f, centroid: d3.geoCentroid(f) });
+      });
+      state.countries.sort(function (a, b) { return a.name.localeCompare(b.name); });
+      state.countries.forEach(function (c) { state.byName[c.name.toLowerCase()] = c; });
+      startDaily();
+      bindUI();
+    })
+    .catch(function (err) {
+      document.getElementById("msg").textContent = "Error: " + err.message +
+        " — run via the local server (npm start), not by opening the file directly.";
+      document.getElementById("msg").className = "msg lose";
+    });
+
+  // ---- Country selection ----
+  // Antarctica can't render in Mercator (it sits on the pole), so never target it.
+  function eligible() {
+    return state.countries.filter(function (c) { return c.name !== "Antarctica"; });
+  }
+
+  function hashStr(s) {
+    var h = 2166136261;
+    for (var i = 0; i < s.length; i++) { h ^= s.charCodeAt(i); h = Math.imul(h, 16777619); }
+    return (h >>> 0);
+  }
+
+  function todayKey() {
+    var d = new Date();
+    return d.getFullYear() + "-" + (d.getMonth() + 1) + "-" + d.getDate();
+  }
+
+  function startDaily() {
+    var pool = eligible();
+    state.mode = "daily";
+    state.dayKey = todayKey();
+    var idx = hashStr("trueshape:" + state.dayKey) % pool.length;
+    beginRound(pool[idx]);
+    // Restore today's finished game if already played.
+    var saved = loadHistory().find(function (g) { return g.mode === "daily" && g.date === state.dayKey; });
+    if (saved) replayFinished(saved);
+  }
+
+  function startPractice() {
+    var pool = eligible();
+    state.mode = "practice";
+    state.dayKey = null;
+    // Vary by guess count + existing time-independent entropy (no Math.random reliance needed,
+    // but practice is fine to be pseudo-random via performance clock).
+    var seed = hashStr("practice:" + performance.now() + ":" + state.guesses.length);
+    beginRound(pool[seed % pool.length]);
+  }
+
+  function beginRound(country) {
+    state.target = country;
+    state.guesses = [];
+    state.over = false;
+    state.proj = "ortho";
+    setActiveProjButton("ortho");
+    document.getElementById("actions").style.display = "none";
+    document.getElementById("msg").textContent = "";
+    document.getElementById("msg").className = "msg";
+    document.getElementById("guess").value = "";
+    document.getElementById("guess").disabled = false;
+    document.getElementById("guessBtn").disabled = false;
+    renderGuesses();
+    render();
+  }
+
+  function replayFinished(g) {
+    // Reconstruct guess rows from saved names for display; lock the board.
+    state.guesses = g.guessNames.map(function (n) { return computeGuess(state.byName[n.toLowerCase()]); });
+    state.over = true;
+    renderGuesses();
+    endUI(g.won);
+  }
+
+  // ---- Rendering the silhouette ----
+  function makeProjection(country) {
+    var lon = country.centroid[0], lat = country.centroid[1], p;
+    if (state.proj === "ortho") {
+      p = d3.geoOrthographic().rotate([-lon, -lat]).clipAngle(90);
+    } else if (state.proj === "mercator") {
+      // Rotate longitude to center the country (also fixes antimeridian smear);
+      // latitude distortion is preserved, which is the whole point.
+      p = d3.geoMercator().rotate([-lon, 0]);
+    } else {
+      p = d3.geoCylindricalEqualArea().parallel(45).rotate([-lon, 0]);
+    }
+    p.fitExtent([[PAD, PAD], [W - PAD, H - PAD]], country.feature);
+    return p;
+  }
+
+  function render() {
+    if (!state.target) return;
+    var proj = makeProjection(state.target);
+    pathGen.projection(proj);
+    svg.selectAll("*").remove();
+    // Subtle globe disc behind the true-shape view for context.
+    if (state.proj === "ortho") {
+      svg.append("path").attr("d", pathGen({ type: "Sphere" }))
+        .attr("fill", "#101b26").attr("stroke", "#33404f").attr("stroke-width", 1);
+    }
+    svg.append("path").attr("class", "land").attr("d", pathGen(state.target.feature));
+    document.getElementById("projNote").textContent = PROJ_NOTE[state.proj];
+  }
+
+  // ---- Guess logic ----
+  function bearingDeg(from, to) {
+    var lon1 = from[0] * Math.PI / 180, lat1 = from[1] * Math.PI / 180;
+    var lon2 = to[0] * Math.PI / 180, lat2 = to[1] * Math.PI / 180;
+    var dLon = lon2 - lon1;
+    var y = Math.sin(dLon) * Math.cos(lat2);
+    var x = Math.cos(lat1) * Math.sin(lat2) - Math.sin(lat1) * Math.cos(lat2) * Math.cos(dLon);
+    var b = Math.atan2(y, x) * 180 / Math.PI;
+    return (b + 360) % 360;
+  }
+
+  function computeGuess(country) {
+    var t = state.target;
+    var distRad = d3.geoDistance(country.centroid, t.centroid);
+    var distKm = distRad * EARTH_KM;
+    var prox = Math.max(0, Math.round((1 - distKm / 20000) * 100));
+    var correct = country.name === t.name;
+    return {
+      name: country.name,
+      dist: distKm,
+      bearing: bearingDeg(country.centroid, t.centroid),
+      prox: correct ? 100 : prox,
+      correct: correct,
+    };
+  }
+
+  function submitGuess(name) {
+    if (state.over) return;
+    var country = state.byName[name.toLowerCase()];
+    if (!country) { flashInput(); return; }
+    if (state.guesses.some(function (g) { return g.name === country.name; })) { flashInput(); return; }
+
+    var g = computeGuess(country);
+    state.guesses.push(g);
+    document.getElementById("guess").value = "";
+    hideAC();
+    renderGuesses();
+
+    if (g.correct) { finish(true); }
+    else if (state.guesses.length >= MAX_GUESSES) { finish(false); }
+  }
+
+  function finish(won) {
+    state.over = true;
+    if (state.mode === "daily") saveResult(won);
+    endUI(won);
+  }
+
+  function endUI(won) {
+    var msg = document.getElementById("msg");
+    if (won) {
+      msg.textContent = "🎉 " + state.target.name + " — solved in " + state.guesses.length + "/" + MAX_GUESSES;
+      msg.className = "msg win";
+    } else {
+      msg.textContent = "The answer was " + state.target.name + ".";
+      msg.className = "msg lose";
+    }
+    document.getElementById("guess").disabled = true;
+    document.getElementById("guessBtn").disabled = true;
+    document.getElementById("actions").style.display = "flex";
+    document.getElementById("shareBtn").style.display = state.mode === "daily" ? "" : "none";
+  }
+
+  // ---- Guess list rendering ----
+  function proxSlots(prox) {
+    // 5 slots, each 20%. green=20, yellow=10 (half).
+    var full = Math.floor(prox / 20);
+    var half = (prox % 20) >= 10 ? 1 : 0;
+    var s = "";
+    for (var i = 0; i < 5; i++) {
+      if (i < full) s += "🟩";
+      else if (i === full && half) s += "🟨";
+      else s += "⬛";
+    }
+    return s;
+  }
+
+  function renderGuesses() {
+    var host = d3.select("#guesses");
+    host.selectAll("*").remove();
+    state.guesses.forEach(function (g) {
+      var row = host.append("div").attr("class", "grow" + (g.correct ? " correct" : ""));
+      row.append("div").attr("class", "name").text(g.name);
+      if (g.correct) {
+        row.append("div").attr("class", "dist").text("—");
+        row.append("div").attr("class", "dir").text("🎯");
+      } else {
+        row.append("div").attr("class", "dist").text(Math.round(g.dist).toLocaleString() + " km");
+        row.append("div").attr("class", "dir").style("transform", "rotate(" + g.bearing + "deg)").text("⬆");
+      }
+      row.append("div").attr("class", "prox").text(g.prox + "%");
+    });
+  }
+
+  function flashInput() {
+    var el = document.getElementById("guess");
+    el.style.borderColor = "var(--bad)";
+    setTimeout(function () { el.style.borderColor = ""; }, 300);
+  }
+
+  // ---- Autocomplete ----
+  var acItems = [], acSel = -1;
+  function updateAC() {
+    var q = document.getElementById("guess").value.trim().toLowerCase();
+    var ac = document.getElementById("ac");
+    if (!q) { hideAC(); return; }
+    var used = {};
+    state.guesses.forEach(function (g) { used[g.name] = true; });
+    acItems = state.countries.filter(function (c) {
+      return !used[c.name] && c.name.toLowerCase().indexOf(q) !== -1;
+    }).slice(0, 8);
+    if (!acItems.length) { hideAC(); return; }
+    acSel = -1;
+    ac.innerHTML = "";
+    acItems.forEach(function (c, i) {
+      var d = document.createElement("div");
+      d.textContent = c.name;
+      d.addEventListener("mousedown", function (e) { e.preventDefault(); submitGuess(c.name); });
+      ac.appendChild(d);
+    });
+    ac.classList.remove("hidden");
+  }
+  function hideAC() { document.getElementById("ac").classList.add("hidden"); acItems = []; acSel = -1; }
+  function moveAC(dir) {
+    if (!acItems.length) return;
+    acSel = (acSel + dir + acItems.length) % acItems.length;
+    var ac = document.getElementById("ac");
+    Array.prototype.forEach.call(ac.children, function (ch, i) {
+      ch.className = i === acSel ? "sel" : "";
+    });
+  }
+
+  // ---- Persistence (localStorage, per device) ----
+  var HKEY = "trueshape.history.v1";
+  function loadHistory() {
+    try { return JSON.parse(localStorage.getItem(HKEY)) || []; }
+    catch (e) { return []; }
+  }
+  function saveResult(won) {
+    var hist = loadHistory();
+    if (hist.some(function (g) { return g.mode === "daily" && g.date === state.dayKey; })) return;
+    hist.push({
+      mode: "daily",
+      date: state.dayKey,
+      target: state.target.name,
+      won: won,
+      tries: state.guesses.length,
+      guessNames: state.guesses.map(function (g) { return g.name; }),
+    });
+    try { localStorage.setItem(HKEY, JSON.stringify(hist)); } catch (e) {}
+  }
+
+  function computeStats() {
+    var daily = loadHistory().filter(function (g) { return g.mode === "daily"; })
+      .sort(function (a, b) { return a.date < b.date ? -1 : 1; });
+    var played = daily.length, wins = 0, dist = [0, 0, 0, 0, 0, 0], streak = 0, max = 0, cur = 0;
+    daily.forEach(function (g) {
+      if (g.won) { wins++; dist[g.tries - 1]++; cur++; if (cur > max) max = cur; }
+      else { cur = 0; }
+    });
+    // current streak = trailing wins
+    for (var i = daily.length - 1; i >= 0; i--) { if (daily[i].won) streak++; else break; }
+    return { played: played, wins: wins, dist: dist, streak: streak, max: max };
+  }
+
+  function showStats() {
+    var s = computeStats();
+    document.getElementById("stPlayed").textContent = s.played;
+    document.getElementById("stWin").textContent = s.played ? Math.round(s.wins / s.played * 100) : 0;
+    document.getElementById("stStreak").textContent = s.streak;
+    document.getElementById("stMax").textContent = s.max;
+    var maxd = Math.max.apply(null, s.dist.concat([1]));
+    var chart = document.getElementById("distChart");
+    chart.innerHTML = "";
+    s.dist.forEach(function (n, i) {
+      var row = document.createElement("div"); row.className = "dist-row";
+      var k = document.createElement("div"); k.className = "k"; k.textContent = (i + 1);
+      var bar = document.createElement("div"); bar.className = "bar" + (n === 0 ? " zero" : "");
+      bar.style.width = (18 + (n / maxd) * 82) + "%"; bar.textContent = n;
+      row.appendChild(k); row.appendChild(bar); chart.appendChild(row);
+    });
+    var hist = loadHistory().filter(function (g) { return g.mode === "daily"; })
+      .sort(function (a, b) { return a.date < b.date ? 1 : -1; }).slice(0, 12);
+    var hl = document.getElementById("histList"); hl.innerHTML = "";
+    hist.forEach(function (g) {
+      var it = document.createElement("div"); it.className = "hist-item";
+      var left = document.createElement("span"); left.textContent = g.date + " · " + g.target;
+      var right = document.createElement("span");
+      right.className = "r " + (g.won ? "win" : "lose");
+      right.textContent = g.won ? (g.tries + "/6") : "X/6";
+      it.appendChild(left); it.appendChild(right); hl.appendChild(it);
+    });
+    openModal("statsModal");
+  }
+
+  // ---- Share ----
+  function shareText() {
+    var lines = ["True Shape Worldle " + state.dayKey,
+      (state.guesses[state.guesses.length - 1].correct ? state.guesses.length : "X") + "/6"];
+    state.guesses.forEach(function (g) { lines.push(proxSlots(g.prox) + " " + g.prox + "%"); });
+    lines.push("🌐 orthographic true shape");
+    return lines.join("\n");
+  }
+  function doShare() {
+    var txt = shareText();
+    if (navigator.share) { navigator.share({ text: txt }).catch(function () {}); }
+    else {
+      navigator.clipboard.writeText(txt).then(function () {
+        var b = document.getElementById("shareBtn");
+        var old = b.textContent; b.textContent = "Copied!";
+        setTimeout(function () { b.textContent = old; }, 1400);
+      });
+    }
+  }
+
+  // ---- Modals ----
+  function openModal(id) { document.getElementById(id).classList.add("show"); }
+  function closeModals() {
+    document.querySelectorAll(".modal-bg").forEach(function (m) { m.classList.remove("show"); });
+  }
+
+  // ---- Projection toggle ----
+  function setActiveProjButton(p) {
+    document.querySelectorAll("#projToggle button").forEach(function (b) {
+      b.classList.toggle("active", b.getAttribute("data-proj") === p);
+    });
+  }
+
+  // ---- UI binding ----
+  function bindUI() {
+    document.getElementById("projToggle").addEventListener("click", function (e) {
+      var b = e.target.closest("button"); if (!b) return;
+      state.proj = b.getAttribute("data-proj");
+      setActiveProjButton(state.proj);
+      render();
+    });
+
+    var input = document.getElementById("guess");
+    input.addEventListener("input", updateAC);
+    input.addEventListener("keydown", function (e) {
+      if (e.key === "ArrowDown") { e.preventDefault(); moveAC(1); }
+      else if (e.key === "ArrowUp") { e.preventDefault(); moveAC(-1); }
+      else if (e.key === "Enter") {
+        e.preventDefault();
+        if (acSel >= 0 && acItems[acSel]) submitGuess(acItems[acSel].name);
+        else if (acItems.length === 1) submitGuess(acItems[0].name);
+        else if (input.value.trim()) submitGuess(input.value.trim());
+      } else if (e.key === "Escape") { hideAC(); }
+    });
+    document.getElementById("guessBtn").addEventListener("click", function () {
+      if (acItems.length >= 1) submitGuess((acSel >= 0 ? acItems[acSel] : acItems[0]).name);
+      else if (input.value.trim()) submitGuess(input.value.trim());
+    });
+    document.addEventListener("click", function (e) {
+      if (!e.target.closest(".guessrow")) hideAC();
+    });
+
+    document.getElementById("shareBtn").addEventListener("click", doShare);
+    document.getElementById("practiceBtn").addEventListener("click", startPractice);
+    document.getElementById("statsBtn").addEventListener("click", showStats);
+    document.getElementById("helpBtn").addEventListener("click", function () { openModal("helpModal"); });
+    document.querySelectorAll("[data-close]").forEach(function (b) {
+      b.addEventListener("click", closeModals);
+    });
+    document.querySelectorAll(".modal-bg").forEach(function (m) {
+      m.addEventListener("click", function (e) { if (e.target === m) closeModals(); });
+    });
+
+    // First-visit help
+    if (!localStorage.getItem("trueshape.seen")) {
+      openModal("helpModal");
+      try { localStorage.setItem("trueshape.seen", "1"); } catch (e) {}
+    }
+  }
+})();
+</script>
+</body>
+</html>
