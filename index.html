@@ -475,9 +475,17 @@
     if (!q) { hideAC(); return; }
     var used = {};
     state.guesses.forEach(function (g) { used[g.name] = true; });
-    acItems = state.countries.filter(function (c) {
-      return !used[c.name] && c.name.toLowerCase().indexOf(q) !== -1;
-    }).slice(0, 8);
+    // Rank prefix matches (name starts with query) above interior substring
+    // matches, so "u" surfaces Uganda/Ukraine before Australia — while typing
+    // "guinea" still finds "Papua New Guinea".
+    var prefix = [], contains = [];
+    state.countries.forEach(function (c) {
+      if (used[c.name]) return;
+      var lc = c.name.toLowerCase(), i = lc.indexOf(q);
+      if (i === 0) prefix.push(c);
+      else if (i > 0) contains.push(c);
+    });
+    acItems = prefix.concat(contains).slice(0, 8);
     if (!acItems.length) { hideAC(); return; }
     acSel = -1;
     ac.innerHTML = "";
